@@ -1,0 +1,19 @@
+{
+  "name": "task-management-api",
+  "version": "1.0.0",
+  "description": "A modular task management CRUD API built with Node.js and Express",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "node",
+    "express",
+    "crud"
+  ],
+  "author": "Copilot",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
