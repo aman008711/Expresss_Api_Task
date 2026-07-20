@@ -1,6 +1,8 @@
 const express = require('express');
+const swaggerUi = require('swagger-ui-express');
 const taskRoutes = require('./client/routes/taskroutes');
 const errorHandler = require('./client/middleware/errorhandler');
+const swaggerDocument = require('./client/swagger/openapi.json');
 
 const app = express();
 const DEFAULT_PORT = Number(process.env.PORT) || 3000;
@@ -20,6 +22,9 @@ app.get('/', (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+// Swagger documentation
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // API routes
 app.use('/tasks', taskRoutes);

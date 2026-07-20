@@ -9,11 +9,13 @@
   "keywords": [
     "node",
     "express",
+    "swagger",
     "crud"
   ],
   "author": "Copilot",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "swagger-ui-express": "^5.0.0"
   }
 }
