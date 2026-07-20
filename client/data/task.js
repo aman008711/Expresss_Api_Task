@@ -21,8 +21,37 @@ function createTask(title) {
   return task;
 }
 
+function updateTask(id, updates) {
+  const task = getTaskById(id);
+  if (!task) {
+    return null;
+  }
+
+  if (updates.title !== undefined) {
+    task.title = updates.title;
+  }
+
+  if (updates.done !== undefined) {
+    task.done = updates.done;
+  }
+
+  return task;
+}
+
+function deleteTask(id) {
+  const taskIndex = tasks.findIndex((task) => task.id === Number(id));
+  if (taskIndex === -1) {
+    return false;
+  }
+
+  tasks.splice(taskIndex, 1);
+  return true;
+}
+
 module.exports = {
   getAllTasks,
   getTaskById,
-  createTask
+  createTask,
+  updateTask,
+  deleteTask
 };

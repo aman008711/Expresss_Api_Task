@@ -1,11 +1,14 @@
 const express = require('express');
 const taskRoutes = require('./client/routes/taskroutes');
+const errorHandler = require('./client/middleware/errorhandler');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const DEFAULT_PORT = Number(process.env.PORT) || 3000;
 
+// Middleware
 app.use(express.json());
 
+// Root routes
 app.get('/', (req, res) => {
   res.json({
     name: 'Task API',
@@ -21,6 +24,42 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/tasks', taskRoutes);
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Handle malformed JSON bodies gracefully
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ error: 'Invalid JSON payload' });
+  }
+
+  return next(err);
 });
+
+// Error handling middleware
+app.use(errorHandler);
+
+function startServer(port = DEFAULT_PORT) {
+  return app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+  });
+}
+
+function startWithFallback(port = DEFAULT_PORT, maxAttempts = 10) {
+  const server = startServer(port);
+
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE' && maxAttempts > 0) {
+      const nextPort = port + 1;
+      console.log(`Port ${port} is busy. Trying ${nextPort} instead.`);
+      server.close();
+      startWithFallback(nextPort, maxAttempts - 1);
+      return;
+    }
+
+    throw err;
+  });
+}
+
+if (require.main === module) {
+  startWithFallback();
+}
+
+module.exports = { app, startServer };
