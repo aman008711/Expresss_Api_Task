@@ -3,6 +3,7 @@ const swaggerUi = require('swagger-ui-express');
 const taskRoutes = require('./client/routes/taskroutes');
 const errorHandler = require('./client/middleware/errorhandler');
 const swaggerDocument = require('./client/swagger/openapi.json');
+require('./database/database'); // Initialize database
 
 const app = express();
 const DEFAULT_PORT = Number(process.env.PORT) || 3000;

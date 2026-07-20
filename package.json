@@ -15,6 +15,7 @@
   "author": "Copilot",
   "license": "ISC",
   "dependencies": {
+    "better-sqlite3": "^12.11.1",
     "express": "^4.21.2",
     "swagger-ui-express": "^5.0.0"
   }
