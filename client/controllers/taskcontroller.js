@@ -16,7 +16,20 @@ function getTaskById(req, res) {
   return res.status(200).json(task);
 }
 
+// Create a new task.
+function createTask(req, res) {
+  const { title } = req.body;
+
+  if (!title || typeof title !== 'string' || title.trim() === '') {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+
+  const task = taskStore.createTask(title.trim());
+  return res.status(201).json(task);
+}
+
 module.exports = {
   getAllTasks,
-  getTaskById
+  getTaskById,
+  createTask
 };
