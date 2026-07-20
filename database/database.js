@@ -32,4 +32,26 @@ if (countRow.count === 0) {
   insertTransaction(seedTasks);
 }
 
-module.exports = db;
+function mapTask(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    title: row.title,
+    done: row.done === 1
+  };
+}
+
+function getAllTasks() {
+  const rows = db.prepare('SELECT id, title, done FROM tasks').all();
+  return rows.map(mapTask);
+}
+
+function getTaskById(id) {
+  const row = db.prepare('SELECT id, title, done FROM tasks WHERE id = ?').get(Number(id));
+  return mapTask(row);
+}
+
+module.exports = {
+  getAllTasks,
+  getTaskById
+};

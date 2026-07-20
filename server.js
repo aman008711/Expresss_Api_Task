@@ -1,8 +1,8 @@
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
-const taskRoutes = require('./client/routes/taskroutes');
-const errorHandler = require('./client/middleware/errorhandler');
-const swaggerDocument = require('./client/swagger/openapi.json');
+const taskRoutes = require('./routes/taskRoutes');
+const errorHandler = require('./middleware/errorHandler');
+const swaggerDocument = require('./swagger/openapi.json');
 require('./database/database'); // Initialize database
 
 const app = express();
@@ -15,8 +15,8 @@ app.use(express.json());
 app.get('/', (req, res) => {
   res.json({
     name: 'Task API',
-    version: '1.0',
-    endpoints: ['/tasks']
+    version: '2.0',
+    database: 'SQLite'
   });
 });
 
