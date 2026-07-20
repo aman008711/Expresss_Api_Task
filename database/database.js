@@ -56,8 +56,28 @@ function createTask(title) {
   return getTaskById(result.lastInsertRowid);
 }
 
+function updateTask(id, updates) {
+  const task = getTaskById(id);
+  if (!task) {
+    return null;
+  }
+
+  const updatedTitle = updates.title !== undefined ? updates.title : task.title;
+  const updatedDone = updates.done !== undefined ? (updates.done ? 1 : 0) : (task.done ? 1 : 0);
+
+  db.prepare('UPDATE tasks SET title = ?, done = ? WHERE id = ?').run(updatedTitle, updatedDone, Number(id));
+  return getTaskById(id);
+}
+
+function deleteTask(id) {
+  const result = db.prepare('DELETE FROM tasks WHERE id = ?').run(Number(id));
+  return result.changes > 0;
+}
+
 module.exports = {
   getAllTasks,
   getTaskById,
-  createTask
+  createTask,
+  updateTask,
+  deleteTask
 };

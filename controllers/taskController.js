@@ -25,11 +25,36 @@ function createTask(req, res) {
 }
 
 function updateTask(req, res) {
-  res.status(501).json({ error: 'Not implemented yet' });
+  const existingTask = taskStore.getTaskById(req.params.id);
+  if (!existingTask) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+
+  const { title, done } = req.body;
+
+  if (title !== undefined && (typeof title !== 'string' || title.trim() === '')) {
+    return res.status(400).json({ error: 'Title cannot be empty' });
+  }
+
+  if (done !== undefined && typeof done !== 'boolean') {
+    return res.status(400).json({ error: 'Done must be a boolean' });
+  }
+
+  const updatedTask = taskStore.updateTask(req.params.id, {
+    title: title !== undefined ? title.trim() : undefined,
+    done
+  });
+
+  res.status(200).json(updatedTask);
 }
 
 function deleteTask(req, res) {
-  res.status(501).json({ error: 'Not implemented yet' });
+  const deleted = taskStore.deleteTask(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({ error: 'Task not found' });
+  }
+
+  res.status(204).send();
 }
 
 module.exports = {
