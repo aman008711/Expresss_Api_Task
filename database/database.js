@@ -51,7 +51,13 @@ function getTaskById(id) {
   return mapTask(row);
 }
 
+function createTask(title) {
+  const result = db.prepare('INSERT INTO tasks (title, done) VALUES (?, ?)').run(title, 0);
+  return getTaskById(result.lastInsertRowid);
+}
+
 module.exports = {
   getAllTasks,
-  getTaskById
+  getTaskById,
+  createTask
 };

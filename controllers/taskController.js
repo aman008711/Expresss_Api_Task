@@ -14,7 +14,14 @@ function getTaskById(req, res) {
 }
 
 function createTask(req, res) {
-  res.status(501).json({ error: 'Not implemented yet' });
+  const { title } = req.body;
+
+  if (!title || typeof title !== 'string' || title.trim() === '') {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+
+  const task = taskStore.createTask(title.trim());
+  res.status(201).json(task);
 }
 
 function updateTask(req, res) {
