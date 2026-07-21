@@ -4,39 +4,52 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL
 });
 
-async function initDb() {
-  // Create tasks table if it does not exist
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS tasks (
-      id SERIAL PRIMARY KEY,
-      title TEXT NOT NULL,
-      done BOOLEAN DEFAULT FALSE
-    )
-  `);
+async function initDb(retries = 5, delay = 2000) {
+  while (retries > 0) {
+    try {
+      // Create tasks table if it does not exist
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS tasks (
+          id SERIAL PRIMARY KEY,
+          title TEXT NOT NULL,
+          done BOOLEAN DEFAULT FALSE
+        )
+      `);
 
-  // Seed default tasks if empty
-  const res = await pool.query('SELECT COUNT(*) AS count FROM tasks');
-  const count = parseInt(res.rows[0].count, 10);
-  if (count === 0) {
-    const seedTasks = [
-      { title: 'Learn Express', done: false },
-      { title: 'Build CRUD API', done: false },
-      { title: 'Push to GitHub', done: true }
-    ];
+      // Seed default tasks if empty
+      const res = await pool.query('SELECT COUNT(*) AS count FROM tasks');
+      const count = parseInt(res.rows[0].count, 10);
+      if (count === 0) {
+        const seedTasks = [
+          { title: 'Learn Express', done: false },
+          { title: 'Build CRUD API', done: false },
+          { title: 'Push to GitHub', done: true }
+        ];
 
-    for (const task of seedTasks) {
-      await pool.query(
-        'INSERT INTO tasks (title, done) VALUES ($1, $2)',
-        [task.title, task.done]
-      );
+        for (const task of seedTasks) {
+          await pool.query(
+            'INSERT INTO tasks (title, done) VALUES ($1, $2)',
+            [task.title, task.done]
+          );
+        }
+        console.log('Seeded tasks table with example data.');
+      }
+      console.log('Database initialized successfully.');
+      return; // Exit retry loop
+    } catch (err) {
+      retries--;
+      console.error(`Database initialization attempt failed. Retries remaining: ${retries}. Error:`, err.message);
+      if (retries === 0) {
+        throw err;
+      }
+      await new Promise(resolve => setTimeout(resolve, delay));
     }
-    console.log('Seeded tasks table with example data.');
   }
 }
 
 // Automatically initialize database
 initDb().catch((err) => {
-  console.error('Failed to initialize PostgreSQL database:', err);
+  console.error('Failed to initialize PostgreSQL database after retries:', err);
 });
 
 function mapTask(row) {
