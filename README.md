@@ -1,6 +1,12 @@
-# Task Management API with SQLite
+# Task Management API with PostgreSQL
 
-A modular RESTful API for managing tasks built with Node.js, Express, and SQLite.
+A modular RESTful API for managing tasks built with Node.js, Express, and PostgreSQL (containerized in Docker).
+
+## Stage 0: Run Postgres in Docker
+To start the database server, run:
+```bash
+docker run --name taskdb -e POSTGRES_PASSWORD=dev -e POSTGRES_DB=tasks -p 5432:5432 -v taskdata:/var/lib/postgresql -d postgres
+```
 
 ## Why SQLite?
 SQLite was chosen for this project because:
