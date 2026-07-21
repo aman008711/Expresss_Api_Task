@@ -15,13 +15,19 @@ app.use(express.json());
 app.get('/', (req, res) => {
   res.json({
     name: 'Task API',
-    version: '2.0',
-    database: 'SQLite'
+    version: '3.0',
+    database: 'PostgreSQL'
   });
 });
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
+app.get('/health', async (req, res) => {
+  try {
+    const { pool } = require('./database/database');
+    await pool.query('SELECT 1');
+    res.json({ status: 'ok', db: 'ok' });
+  } catch (err) {
+    res.status(500).json({ status: 'error', db: 'down', error: err.message });
+  }
 });
 
 // Swagger documentation
