@@ -82,3 +82,29 @@ Keep-Alive: timeout=5
   {"id":3,"title":"Push to GitHub","done":true}
 ]
 ```
+
+---
+
+## Stage 6: The AI Rematch (PostgreSQL Migration Edition)
+
+### The Prompt
+> "Write a multi-container Docker Compose configuration for my Node.js Express task CRUD API. I'm using the 'pg' library with PostgreSQL. The database needs a persistent volume and has password 'dev' and database 'tasks'. The API and database should boot with a single command. The DB credentials must come from environment variables. Ensure the tasks table schema is created automatically on start (id serial primary key, title text, done boolean) and seeded with 3 tasks ('Learn Express', 'Build CRUD API', 'Push to GitHub') ONLY if the table is empty. Implement parameterized queries for all endpoints."
+
+### Run & Diff Comparison
+
+We quarantined the AI's version in [ai-version/](file:///c:/Users/amnk3/First%20Crud%20Api/ai-version) and compared it to our hand-built version using `git diff --no-index`.
+
+#### 1. What did our hand-built version do better?
+- **Docker Compose Networking**: Our `compose.yaml` correctly used the database service name `db` inside the `DATABASE_URL` environment variable (`postgres://postgres:dev@db:5432/tasks`). The AI used `localhost:5432`, which works for local host machine runs but causes an immediate crash (`ECONNREFUSED`) inside the isolated container network.
+- **Service Dependency & Healthchecks**: We configured a `healthcheck` on the database (`pg_isready`) and set `condition: service_healthy` on `depends_on`. The AI version had no healthchecks, causing a startup race condition where the Node API started querying the database before the database was ready.
+- **Connection Resilience**: We added startup retry logic in our `database/database.js` to wait for PostgreSQL to boot. The AI version threw a fatal error and exited on the first database connection failure.
+- **Volume Mount Correctness**: We mounted the volume at `/var/lib/postgresql` as recommended by newer Postgres images on Windows/Docker Desktop to avoid the `pg_ctl` subdirectory version mismatch error. The AI mounted to the legacy path `/var/lib/postgresql/data`, which caused immediate container exit.
+- **Slim Multi-Stage Build**: We wrote a multi-stage Dockerfile that keeps build tools out of the final image and runs as a non-root `node` user for security. The AI wrote a heavy single-stage image running as root.
+
+#### 2. What did the AI get wrong or quietly ignore?
+- **Security Vulnerability (SQL Injection)**: The AI quietly wrote a direct string interpolation inside the DELETE query in `database.js` (`DELETE FROM tasks WHERE id = ${id}`) instead of using a parameterized placeholder (`$1`), introducing a critical SQL injection vulnerability.
+- **Lack of Type Safety & Validation**: In the PUT endpoint, the AI failed to perform type validation on input variables, permitting empty string updates and non-boolean `done` attributes, which violates the schema constraints.
+
+#### 3. What did the prompt forget to specify?
+- We forgot to specify that the database might take several seconds to boot, requiring startup retry logic or docker-compose healthcheck coordination. The AI silently assumed the database would be instantly accessible.
+- We forgot to specify the security standard for container execution (non-root). The AI defaulted to `root` permissions.

@@ -1,3 +1,16 @@
+const fs = require('fs');
+const path = require('path');
+
+// Load environment variables from .env if it exists
+const envPath = path.resolve(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+  try {
+    process.loadEnvFile(envPath);
+  } catch (err) {
+    console.warn('Could not load .env file:', err);
+  }
+}
+
 const express = require('express');
 const swaggerUi = require('swagger-ui-express');
 const taskRoutes = require('./routes/taskRoutes');

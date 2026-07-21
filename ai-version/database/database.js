@@ -1,24 +1,62 @@
-const Database = require('better-sqlite3');
-const path = require('path');
+const { Pool } = require('pg');
 
-// Junior AI might use a relative path directly or join without considering absolute execution contexts
-const db = new Database('tasks.db'); 
+// ERROR: Hardcoded connection string instead of reading DATABASE_URL from process.env
+const pool = new Pool({
+  connectionString: 'postgres://postgres:dev@localhost:5432/tasks'
+});
 
-// Create table
-db.prepare(`
-  CREATE TABLE IF NOT EXISTS tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    done INTEGER DEFAULT 0
-  )
-`).run();
+async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      done BOOLEAN DEFAULT FALSE
+    )
+  `);
 
-// Seed database without a transaction
-const count = db.prepare('SELECT COUNT(*) AS count FROM tasks').get().count;
-if (count === 0) {
-  db.prepare("INSERT INTO tasks (title, done) VALUES ('Learn Express', 0)").run();
-  db.prepare("INSERT INTO tasks (title, done) VALUES ('Build CRUD API', 0)").run();
-  db.prepare("INSERT INTO tasks (title, done) VALUES ('Push to GitHub', 1)").run();
+  const res = await pool.query('SELECT COUNT(*) AS count FROM tasks');
+  if (parseInt(res.rows[0].count, 10) === 0) {
+    await pool.query("INSERT INTO tasks (title, done) VALUES ('Learn Express', false)");
+    await pool.query("INSERT INTO tasks (title, done) VALUES ('Build CRUD API', false)");
+    await pool.query("INSERT INTO tasks (title, done) VALUES ('Push to GitHub', true)");
+  }
 }
 
-module.exports = db;
+// ERROR: Missing database connection retry logic on startup
+initDb().catch((err) => {
+  console.error('Failed database initialization:', err);
+});
+
+async function getAllTasks() {
+  const res = await pool.query('SELECT * FROM tasks');
+  return res.rows;
+}
+
+async function getTaskById(id) {
+  const res = await pool.query('SELECT * FROM tasks WHERE id = $1', [id]);
+  return res.rows[0];
+}
+
+async function createTask(title) {
+  const res = await pool.query('INSERT INTO tasks (title, done) VALUES ($1, false) RETURNING *', [title]);
+  return res.rows[0];
+}
+
+async function updateTask(id, updates) {
+  const res = await pool.query('UPDATE tasks SET title = $1, done = $2 WHERE id = $3 RETURNING *', [updates.title, updates.done, id]);
+  return res.rows[0];
+}
+
+async function deleteTask(id) {
+  // SECURITY VULNERABILITY: SQL Injection via direct concatenation instead of using $1 parameterized queries
+  const res = await pool.query(`DELETE FROM tasks WHERE id = ${id}`);
+  return res.rowCount > 0;
+}
+
+module.exports = {
+  getAllTasks,
+  getTaskById,
+  createTask,
+  updateTask,
+  deleteTask
+};
