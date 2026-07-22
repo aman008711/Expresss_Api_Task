@@ -16,10 +16,16 @@ const swaggerUi = require('swagger-ui-express');
 const taskRoutes = require('./routes/taskRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const swaggerDocument = require('./swagger/openapi.json');
+const { createSupabaseClient } = require('./lib/supabaseClient');
 require('./database/database'); // Initialize database
 
 const app = express();
 const DEFAULT_PORT = Number(process.env.PORT) || 3000;
+const supabase = createSupabaseClient();
+
+if (!supabase) {
+  console.warn('Supabase client not initialized. Set SUPABASE_URL and SUPABASE_KEY in .env if you want auth routes to work.');
+}
 
 // Middleware
 app.use(express.json());
@@ -63,7 +69,8 @@ app.use(errorHandler);
 
 function startServer(port = DEFAULT_PORT) {
   return app.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
+    const supabaseStatus = supabase ? 'connected to Supabase' : 'Supabase not configured';
+    console.log(`Server running on port ${port}, ${supabaseStatus}`);
   });
 }
 
