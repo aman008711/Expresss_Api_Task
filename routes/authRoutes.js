@@ -58,4 +58,24 @@ router.post('/auth/login', async (req, res) => {
   });
 });
 
+/**
+ * GET /public/info
+ * Public endpoint that does not require authentication.
+ */
+router.get('/public/info', (req, res) => {
+  res.status(200).json({ message: 'Welcome stranger! This info is public.' });
+});
+
+/**
+ * GET /protected/profile
+ * Unverified profile endpoint for Stage 2 (returns mock data).
+ */
+router.get('/protected/profile', (req, res) => {
+  res.status(200).json({
+    id: "mock-id-12345",
+    email: "mock@example.com",
+    created_at: "2026-07-22T00:00:00Z"
+  });
+});
+
 module.exports = router;
