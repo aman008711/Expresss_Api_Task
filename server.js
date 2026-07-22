@@ -17,6 +17,7 @@ const taskRoutes = require('./routes/taskRoutes');
 const errorHandler = require('./middleware/errorHandler');
 const swaggerDocument = require('./swagger/openapi.json');
 const { createSupabaseClient } = require('./lib/supabaseClient');
+const authRoutes = require('./routes/authRoutes');
 require('./database/database'); // Initialize database
 
 const app = express();
@@ -54,6 +55,7 @@ app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // API routes
 app.use('/tasks', taskRoutes);
+app.use('/', authRoutes);
 
 // Handle malformed JSON bodies gracefully
 app.use((err, req, res, next) => {
