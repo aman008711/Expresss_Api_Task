@@ -1,4 +1,5 @@
 const express = require('express');
+const requireAuth = require('../middleware/requireAuth');
 const { createSupabaseClient } = require('../lib/supabaseClient');
 
 const router = express.Router();
@@ -59,6 +60,31 @@ router.post('/auth/login', async (req, res) => {
 });
 
 /**
+ * POST /auth/logout
+ * Protected route that logs the current user out via Supabase.
+ */
+router.post('/auth/logout', requireAuth, async (req, res) => {
+  const supabase = createSupabaseClient();
+
+  if (!supabase) {
+    return res.status(500).json({ error: 'Supabase client is not configured' });
+  }
+
+  const authHeader = req.get('authorization') || '';
+  const [, token] = authHeader.trim().split(' ');
+
+  // Set the session context so Supabase knows which token to revoke
+  await supabase.auth.setSession({ access_token: token, refresh_token: '' });
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  return res.status(204).send();
+});
+
+/**
  * GET /public/info
  * Public endpoint that does not require authentication.
  */
@@ -69,44 +95,15 @@ router.get('/public/info', (req, res) => {
 /**
  * GET /protected/profile
  * Protected endpoint that returns a safe subset of the user's profile.
- * Implements token verification inline for Stage 3.
  */
-router.get('/protected/profile', async (req, res) => {
-  const supabase = createSupabaseClient();
+router.get('/protected/profile', requireAuth, (req, res) => {
+  const user = req.user || {};
 
-  if (!supabase) {
-    return res.status(500).json({ error: 'Supabase client is not configured' });
-  }
-
-  const authHeader = req.get('authorization') || '';
-  const headerValue = authHeader.trim();
-
-  if (!headerValue) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  const [scheme, token] = headerValue.split(' ');
-
-  if (!scheme || scheme.toLowerCase() !== 'bearer' || !token) {
-    return res.status(401).json({ error: 'Access token required' });
-  }
-
-  try {
-    const { data, error } = await supabase.auth.getUser(token);
-
-    if (error || !data?.user) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    const user = data.user;
-    return res.status(200).json({
-      id: user.id,
-      email: user.email,
-      created_at: user.created_at
-    });
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
+  res.status(200).json({
+    id: user.id,
+    email: user.email,
+    created_at: user.created_at
+  });
 });
 
 module.exports = router;
