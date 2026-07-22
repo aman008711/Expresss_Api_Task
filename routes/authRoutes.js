@@ -68,14 +68,45 @@ router.get('/public/info', (req, res) => {
 
 /**
  * GET /protected/profile
- * Unverified profile endpoint for Stage 2 (returns mock data).
+ * Protected endpoint that returns a safe subset of the user's profile.
+ * Implements token verification inline for Stage 3.
  */
-router.get('/protected/profile', (req, res) => {
-  res.status(200).json({
-    id: "mock-id-12345",
-    email: "mock@example.com",
-    created_at: "2026-07-22T00:00:00Z"
-  });
+router.get('/protected/profile', async (req, res) => {
+  const supabase = createSupabaseClient();
+
+  if (!supabase) {
+    return res.status(500).json({ error: 'Supabase client is not configured' });
+  }
+
+  const authHeader = req.get('authorization') || '';
+  const headerValue = authHeader.trim();
+
+  if (!headerValue) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  const [scheme, token] = headerValue.split(' ');
+
+  if (!scheme || scheme.toLowerCase() !== 'bearer' || !token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  try {
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error || !data?.user) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const user = data.user;
+    return res.status(200).json({
+      id: user.id,
+      email: user.email,
+      created_at: user.created_at
+    });
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
 });
 
 module.exports = router;
