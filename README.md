@@ -80,3 +80,74 @@ curl -i http://localhost:3000/protected/profile -H "Authorization: Bearer YOUR_T
 ```bash
 curl -i -X POST http://localhost:3000/auth/logout -H "Authorization: Bearer YOUR_TOKEN"
 ```
+
+
+# Polite Book Scraper
+
+## Target Classification
+
+### Target
+Books to Scrape
+
+### URL
+https://books.toscrape.com/
+
+### Purpose
+This is a public practice sandbox designed for learning web scraping.
+
+### Scope
+This scraper processes only the first three catalogue pages and their 60 book pages.
+
+### Data Collected
+- Title
+- Product URL
+- Price
+- Availability
+- Rating
+- Description
+- Source page
+- Fetch timestamp
+
+### Robots Check
+Checked:
+https://books.toscrape.com/robots.txt
+
+Result:
+[Write the actual result after checking it.]
+
+### Ethics
+I will not reuse this code on another site without checking its rules and terms first.
+
+# Polite Web Scraper
+
+## Overview
+
+This repository contains a polite web scraper for Books to Scrape.
+
+The scraper discovers books from the first three catalogue pages, extracts book details, validates the records, handles failures, caches downloaded HTML, and generates a run report.
+
+---
+
+## Target Classification
+
+Target: https://books.toscrape.com/
+
+The target is a static HTML catalogue website.
+
+The scraper uses normal HTTP requests and HTML parsing.
+
+Before scraping, the target's robots.txt and site behavior should be checked to understand the applicable crawling restrictions.
+
+---
+
+## Scraper Structure
+
+```text
+scraper/
+├── src/
+│   └── index.js
+├── cache/
+├── output/
+│   ├── books.json
+│   ├── errors.json
+│   └── run-report.json
