@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "A modular task management CRUD API built with Node.js and Express",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js"
   },
@@ -17,9 +18,11 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.110.8",
     "better-sqlite3": "^12.11.1",
+    "cheerio": "^1.2.0",
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "pg": "^8.22.0",
-    "swagger-ui-express": "^5.0.0"
+    "swagger-ui-express": "^5.0.0",
+    "zod": "^4.4.3"
   }
 }
