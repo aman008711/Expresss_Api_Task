@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { InputSchema, STUB_RESPONSE } from "../llm/schema.js";
+import { InputSchema } from "../llm/schema.js";
+import { triageMessage } from "../llm/triageService.js";
 
 const router = Router();
 
@@ -17,14 +18,9 @@ router.post("/", async (req, res, next) => {
       });
     }
 
-    // 2. Stub mode: skip model completely when LLM_STUB=1
-    if (process.env.LLM_STUB === "1") {
-      return res.status(200).json(STUB_RESPONSE);
-    }
-
-    // Pass validated data forward (Stage 2+ will wire LLM completion)
-    req.validatedInput = parseResult.data;
-    return next();
+    // 2. Call triage service
+    const result = await triageMessage(parseResult.data.text);
+    return res.status(200).json(result);
   } catch (err) {
     return next(err);
   }
