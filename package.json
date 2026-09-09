@@ -2,10 +2,10 @@
   "name": "task-management-api",
   "version": "1.0.0",
   "description": "A modular task management CRUD API built with Node.js and Express",
-  "main": "server.js",
-  "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "start:llm": "npm --prefix server start",
+    "eval": "npm --prefix server run eval"
   },
   "keywords": [
     "node",
