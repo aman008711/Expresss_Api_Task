@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { InputSchema } from "../llm/schema.js";
-import { triageMessage, SchemaValidationError } from "../llm/triageService.js";
+import {
+  triageMessage,
+  SchemaValidationError,
+  GatewayTimeoutError,
+  ProviderAuthError,
+} from "../llm/triageService.js";
 
 const router = Router();
 
@@ -18,7 +23,7 @@ router.post("/", async (req, res, next) => {
       });
     }
 
-    // 2. Triage message through LLM pipeline (parse, validate, repair once, quarantine)
+    // 2. Execute triage pipeline (kill switch, client call, retry, parse, repair, quarantine, cost log)
     const result = await triageMessage(parseResult.data.text);
     return res.status(200).json(result.data);
   } catch (err) {
@@ -29,6 +34,21 @@ router.post("/", async (req, res, next) => {
         details: err.details,
       });
     }
+
+    if (err instanceof GatewayTimeoutError) {
+      return res.status(504).json({
+        error: "Gateway Timeout",
+        message: err.message,
+      });
+    }
+
+    if (err instanceof ProviderAuthError) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        message: err.message,
+      });
+    }
+
     return next(err);
   }
 });

@@ -4,26 +4,56 @@ import { fileURLToPath } from "url";
 import { getLLMClient } from "./client.js";
 import { getSystemPrompt, PROMPT_VERSION } from "./prompt.js";
 import { TriageOutputSchema, STUB_RESPONSE } from "./schema.js";
+import { callWithRetry } from "./retryPolicy.js";
+import { logCost } from "./costLogger.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const logsDir = path.resolve(__dirname, "../../logs");
 const quarantineLogPath = path.resolve(logsDir, "quarantine.jsonl");
 
-// Ensure logs directory exists
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
-/**
- * Strips markdown fences and extracts a valid JSON object.
- */
+export const KILL_SWITCH_FALLBACK = {
+  category: "other",
+  urgency: "normal",
+  confidence: 0.0,
+  reason: "Service temporarily routed to deterministic fallback via kill switch (LLM_ENABLED=false).",
+};
+
+export class SchemaValidationError extends Error {
+  constructor(message, details, rawOutput) {
+    super(message);
+    this.name = "SchemaValidationError";
+    this.status = 422;
+    this.details = details;
+    this.rawOutput = rawOutput;
+  }
+}
+
+export class GatewayTimeoutError extends Error {
+  constructor(message = "LLM provider request timed out") {
+    super(message);
+    this.name = "GatewayTimeoutError";
+    this.status = 504;
+  }
+}
+
+export class ProviderAuthError extends Error {
+  constructor(message = "Authentication failed with LLM provider") {
+    super(message);
+    this.name = "ProviderAuthError";
+    this.status = 401;
+  }
+}
+
 export function extractAndParseJson(rawText) {
   if (!rawText || typeof rawText !== "string") {
     return { success: false, error: "Empty or non-string response from model", raw: rawText };
   }
 
-  // 1. Try stripping markdown code fences
   let clean = rawText.trim();
   if (clean.startsWith("```")) {
     clean = clean.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
@@ -33,7 +63,6 @@ export function extractAndParseJson(rawText) {
     const parsed = JSON.parse(clean);
     return { success: true, data: parsed, raw: rawText };
   } catch (initialErr) {
-    // 2. Try locating outermost { ... }
     const firstBrace = rawText.indexOf("{");
     const lastBrace = rawText.lastIndexOf("}");
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
@@ -49,9 +78,6 @@ export function extractAndParseJson(rawText) {
   }
 }
 
-/**
- * Validates parsed data against TriageOutputSchema.
- */
 export function validateOutput(data) {
   const result = TriageOutputSchema.safeParse(data);
   if (result.success) {
@@ -61,9 +87,6 @@ export function validateOutput(data) {
   return { valid: false, error: issues };
 }
 
-/**
- * Appends malformed/unfixable response to logs/quarantine.jsonl.
- */
 export function logQuarantine({ input, error, rawOutput, promptVersion }) {
   const entry = {
     timestamp: new Date().toISOString(),
@@ -75,27 +98,26 @@ export function logQuarantine({ input, error, rawOutput, promptVersion }) {
   fs.appendFileSync(quarantineLogPath, JSON.stringify(entry) + "\n", "utf-8");
 }
 
-export class SchemaValidationError extends Error {
-  constructor(message, details, rawOutput) {
-    super(message);
-    this.name = "SchemaValidationError";
-    this.status = 422;
-    this.details = details;
-    this.rawOutput = rawOutput;
-  }
-}
-
 /**
- * Executes triage with:
- * - JSON parse & Zod schema validation
- * - Exactly one repair retry on parse/schema failure
- * - Quarantine logging on persistent failure (logs/quarantine.jsonl)
- * - Returns clean validated JSON or throws 422 SchemaValidationError
+ * Triage pipeline:
+ * 1. Check kill switch (LLM_ENABLED=false)
+ * 2. Check stub mode (LLM_STUB=1)
+ * 3. Invoke LLM with explicit timeout and retry policy
+ * 4. Parse JSON and validate against Zod schema
+ * 5. Single repair retry if attempt 1 fails
+ * 6. Quarantine log and 422 if attempt 2 fails
+ * 7. Token and cost structured logging
  */
 export async function triageMessage(text) {
-  // Stub mode: zero model calls, deterministic valid response
+  // 1. Kill Switch Check
+  if (process.env.LLM_ENABLED === "false" || process.env.LLM_ENABLED === "0") {
+    console.log("[KILL SWITCH] LLM_ENABLED is false; returning deterministic fallback immediately.");
+    return { data: KILL_SWITCH_FALLBACK, isFallback: true, repairCount: 0 };
+  }
+
+  // 2. Stub mode
   if (process.env.LLM_STUB === "1") {
-    return { data: STUB_RESPONSE, repairCount: 0 };
+    return { data: STUB_RESPONSE, isStub: true, repairCount: 0 };
   }
 
   const client = getLLMClient();
@@ -103,29 +125,67 @@ export async function triageMessage(text) {
   const model = process.env.LLM_MODEL || "openrouter/free";
   const userContent = JSON.stringify({ text });
 
+  const startTime = Date.now();
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let neededRepair = false;
+
+  async function executeCompletion(messages) {
+    try {
+      return await callWithRetry(() =>
+        client.chat.completions.create({
+          model,
+          temperature: 0.1,
+          messages,
+        })
+      );
+    } catch (err) {
+      if (err.status === 401) {
+        throw new ProviderAuthError(`Invalid API key or unauthorized access to model '${model}' (HTTP 401).`);
+      }
+      if (
+        err.name === "APIConnectionTimeoutError" ||
+        err.code === "ETIMEDOUT" ||
+        err.status === 504 ||
+        (err.message && err.message.toLowerCase().includes("timeout"))
+      ) {
+        throw new GatewayTimeoutError(`LLM provider call timed out after ${process.env.LLM_TIMEOUT_MS || 30000}ms.`);
+      }
+      throw err;
+    }
+  }
+
   // --- ATTEMPT 1 ---
-  const messages = [
+  const messages1 = [
     { role: "system", content: systemPrompt },
     { role: "user", content: userContent },
   ];
 
-  const response1 = await client.chat.completions.create({
-    model,
-    temperature: 0.1,
-    messages,
-  });
-
+  const response1 = await executeCompletion(messages1);
   const raw1 = response1.choices[0]?.message?.content || "";
+  totalInputTokens += response1.usage?.prompt_tokens || 0;
+  totalOutputTokens += response1.usage?.completion_tokens || 0;
+
   const parseResult1 = extractAndParseJson(raw1);
 
   if (parseResult1.success) {
     const valResult1 = validateOutput(parseResult1.data);
     if (valResult1.valid) {
-      return { data: valResult1.data, repairCount: 0, usage: response1.usage };
+      const durationMs = Date.now() - startTime;
+      logCost({
+        promptVersion: PROMPT_VERSION,
+        model,
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        durationMs,
+        neededRepair: false,
+      });
+      return { data: valResult1.data, repairCount: 0 };
     }
   }
 
   // --- REPAIR RETRY (Attempt 2) ---
+  neededRepair = true;
   const firstError = !parseResult1.success
     ? parseResult1.error
     : validateOutput(parseResult1.data).error;
@@ -140,23 +200,30 @@ export async function triageMessage(text) {
     },
   ];
 
-  const response2 = await client.chat.completions.create({
+  const response2 = await executeCompletion(repairMessages);
+  const raw2 = response2.choices[0]?.message?.content || "";
+  totalInputTokens += response2.usage?.prompt_tokens || 0;
+  totalOutputTokens += response2.usage?.completion_tokens || 0;
+
+  const durationMs = Date.now() - startTime;
+  logCost({
+    promptVersion: PROMPT_VERSION,
     model,
-    temperature: 0.1,
-    messages: repairMessages,
+    inputTokens: totalInputTokens,
+    outputTokens: totalOutputTokens,
+    durationMs,
+    neededRepair: true,
   });
 
-  const raw2 = response2.choices[0]?.message?.content || "";
   const parseResult2 = extractAndParseJson(raw2);
-
   if (parseResult2.success) {
     const valResult2 = validateOutput(parseResult2.data);
     if (valResult2.valid) {
-      return { data: valResult2.data, repairCount: 1, usage: response2.usage };
+      return { data: valResult2.data, repairCount: 1 };
     }
   }
 
-  // --- REPAIR FAILED: QUARANTINE & 422 ---
+  // --- PERSISTENT FAILURE: QUARANTINE & 422 ---
   const finalError = !parseResult2.success
     ? parseResult2.error
     : validateOutput(parseResult2.data).error;
