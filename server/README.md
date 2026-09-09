@@ -1,4 +1,4 @@
-# FlyRank Internship - Week 7 Assignment A17: Put an LLM Behind Your API
+# LLM Support Message Triage API
 
 A production-grade, resilient backend service that places an LLM behind an Express REST API to classify and triage messy incoming customer support messages into structured, validated JSON.
 
@@ -133,7 +133,7 @@ If given another day to expand this service, I would:
 ## 8. Verification & Quickstart
 
 ```bash
-# 1. Clone repo and enter server directory
+# 1. Clone repo and enter directory
 git clone <repo-url>
 cd server
 
