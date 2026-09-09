@@ -1,0 +1,18 @@
+{
+  "name": "llm-triage-api",
+  "version": "1.0.0",
+  "description": "LLM-powered support message triage API",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env src/server.js",
+    "dev": "node --env-file=.env --watch src/server.js",
+    "eval": "node --env-file=.env evals/run-evals.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "openai": "^4.86.1",
+    "zod": "^3.23.8"
+  }
+}
