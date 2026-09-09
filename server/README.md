@@ -130,10 +130,42 @@ If given another day to expand this service, I would:
 
 ---
 
-## 8. Verification & Quickstart
+## 8. Bonus Stage: AI vs Me
+
+In accordance with Bonus Stage instructions, an AI was prompted from scratch to build the triage endpoint in quarantine (`server/ai-version/`).
+
+### The Specification Prompt Used
+```text
+Write a production-grade Node.js Express endpoint POST /triage that classifies customer support messages.
+Requirements:
+1. Input Validation: Validate req.body.text is 1-2000 chars using Zod. Return 400 naming field on failure.
+2. Output Schema: Enforce Zod output shape (category, urgency, confidence, reason).
+3. Prompt: System prompt in prompts/triage-v1.md. Send user input as separate user message.
+4. Parsing & Repair: Strip fences, parse JSON. Repair once on schema failure. Quarantine on failure and return 422.
+5. Timeout & Retries: 30s timeout (return 504). Retry only timeouts, 429, 5xx with exponential backoff & jitter. Never retry 400, 401, 403.
+6. Cost Logging: Structured JSON log per call (tokens, duration, repair).
+7. Kill Switch: LLM_ENABLED=false returns deterministic fallback.
+```
+
+### Three Concrete Named Differences Between AI Version and Hand-Built Implementation
+
+| Dimension | AI-Generated Version (`ai-version/src/`) | Hand-Built Version (`src/llm/`) |
+|---|---|---|
+| **1. Client Timeout & Hangs** | **Silently omitted timeout configuration**, leaving the SDK default (10 minutes). If OpenRouter stalls, the connection hangs indefinitely and kills the API. | **Explicit 30s timeout configured** (`LLM_TIMEOUT_MS=30000`). If exceeded, catches `APIConnectionTimeoutError` and returns clean HTTP `504 Gateway Timeout`. |
+| **2. Auth Failure & Retries on 401** | **Left default SDK retry enabled**. When given an invalid API key, it retried twice on 401 Unauthorized, burning rate limits and taking 8+ seconds to fail. | **Custom retry policy with explicit classification**. Non-retryable errors (`401`, `403`, `400`) fail fast immediately within 30ms with zero retries. Timeouts, 429s (with `Retry-After`), and 5xxs back off with jitter. |
+| **3. Output Validation & Quarantine** | **Used naive `JSON.parse(content)`**. Crashed when model included markdown fences (` ```json `), returned raw 500 stack traces, and never logged quarantined payloads. | **Multi-stage defense**: strips fences, extracts `{ ... }`, runs `Zod.safeParse()`, performs exactly one targeted repair retry, and logs unfixable outputs to `logs/quarantine.jsonl` with HTTP 422. |
+
+### Retrospective
+- **What the AI did better**: Generated boilerplate Express routing quickly.
+- **What it got wrong / ignored**: Silently ignored the 30-second client timeout, left SDK default retries on 401, and treated `JSON.parse` as infallible.
+- **What was omitted in the prompt**: Did not specify that SDK internal retries must be disabled (`maxRetries: 0`), so the AI let the SDK retry invisibly before user code could intervene.
+
+---
+
+## 9. Verification & Quickstart
 
 ```bash
-# 1. Clone repo and enter directory
+# 1. Clone repo and enter server directory
 git clone <repo-url>
 cd server
 
